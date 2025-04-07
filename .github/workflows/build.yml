@@ -1,0 +1,53 @@
+name: Build MIDI Pico Hub
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies and ARM toolchain
+        run: |
+          sudo apt update
+          sudo apt install -y cmake build-essential git make
+          wget -qO- https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-arm-none-eabi.tar.xz > toolchain.tar.xz
+          sudo mkdir -p /opt/arm-gnu-toolchain-13.2.Rel1-x86_64-arm-none-eabi
+          sudo tar -xJf toolchain.tar.xz -C /opt/arm-gnu-toolchain-13.2.Rel1-x86_64-arm-none-eabi --strip-components=1
+          export PATH=$PATH:/opt/arm-gnu-toolchain-13.2.Rel1-x86_64-arm-none-eabi/bin
+          arm-none-eabi-gcc --version
+
+      - name: Install Pico SDK
+        run: |
+          git clone -b 1.5.1 https://github.com/raspberrypi/pico-sdk.git --depth=1
+          cd pico-sdk
+          git submodule update --init --depth=1
+          echo "PICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk" >> $GITHUB_ENV
+
+      - name: Debug environment
+        run: |
+          pwd
+          ls -la lib/pico_pio_usb/src/
+
+      - name: Build project
+        run: |
+          rm -rf build
+          mkdir build
+          cd build
+          cmake .. -DPICO_SDK_PATH=$PICO_SDK_PATH
+          make -j$(nproc)
+
+      - name: Upload .uf2 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi_router_pico.uf2
+          path: build/midi_router_pico.uf2
